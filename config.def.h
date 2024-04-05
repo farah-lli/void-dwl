@@ -8,13 +8,19 @@
 /* appearance */
 static const int sloppyfocus                = 1;  /* focus follows mouse */
 static const int bypass_surface_visibility  = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
+static const int smartgaps                  = 1;  /* 1 means no outer gap when there is only one window */
+static int gaps                             = 1;  /* 1 means gaps between windows are added */
+static const unsigned int gappx             = 2; /* gap pixel between windows */
 static const unsigned int borderpx          = 2;  /* border pixel of windows */
 static const float rootcolor[]              = COLOR(0x1d2021ff);
 static const float bordercolor[]            = COLOR(0x282828ff);
 static const float focuscolor[]             = COLOR(0x689d6aff);
 static const float urgentcolor[]            = COLOR(0x9d0006ff);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
-static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
+static const float fullscreen_bg[]          = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
+static const int center_relative_to_monitor = 0; /* 0 means center floating relative to the window area */
+static const char cursortheme[]             = "Bibata-Modern-Classic"; /* theme from /usr/share/cursors/xorg-x11 */
+static const unsigned int cursorsize        = 24;
 
 /* tagging - TAGCOUNT must be no greater than 31 */
 #define TAGCOUNT (9)
@@ -22,11 +28,23 @@ static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You ca
 /* logging */
 static int log_level = WLR_ERROR;
 
+/* Autostart */
+static const char *const autostart[] = {
+        "bash", "/home/lli/.config/wayland-suckless/dwl/scripts/autostart.sh", NULL,
+        "bash", "/home/lli/.config/wayland-suckless/dwl/scripts/gtkTheme.sh", NULL,
+        NULL /* terminate */
+};
+
+
 static const Rule rules[] = {
-	/* app_id             title       tags mask     isfloating   monitor */
+	/* app_id             title       tags mask     isfloating   monitor   x   y  width  height */
 	/* examples: */
-	{ "Gimp_EXAMPLE",     NULL,       0,            1,           -1 }, /* Start on currently visible tags floating, not tiled */
-	{ "firefox_EXAMPLE",  NULL,       1 << 8,       0,           -1 }, /* Start on ONLY tag "9" */
+	{ "Gimp_EXAMPLE",     NULL,       0,            0,           -1,       0,  0,     0,     0, }, /* Start on currently visible tags floating, not tiled */
+	{ "firefox_EXAMPLE",  NULL,       1 << 8,       0,           -1,       0,  0,     0,     0, }, /* Start on ONLY tag "9" */
+	{ "foot_float",       NULL,       0,            1,           -1,       0,  0,  1000,  0.75, }, /* Start on ONLY tag "9" */
+	{ "wez_float",        NULL,       0,            1,           -1,       0,  0,  1000,  0.75, }, /* Start on ONLY tag "9" */
+	{ "wez_float",        NULL,       0,            1,           -1,       0,  0,  1000,  0.75, }, /* Start on ONLY tag "9" */
+	{ "fileCli",          NULL,       0,            1,           -1,       0,  0,  1000,  0.75, }, /* Start on ONLY tag "9" */
 };
 
 /* layout(s) */
@@ -104,6 +122,8 @@ LIBINPUT_CONFIG_TAP_MAP_LMR -- 1/2/3 finger tap maps to left/middle/right
 */
 static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TAP_MAP_LRM;
 
+static const int cursor_timeout = 5;
+
 /* If you want to use the windows key for MODKEY, use WLR_MODIFIER_LOGO */
 #define MODKEY WLR_MODIFIER_ALT
 
@@ -173,12 +193,15 @@ static const Key keys[] = {
 	{ WLR_MODIFIER_LOGO,         XKB_KEY_period,     spawn,          SHCMD("mocp --seek +10") },
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_J,          movestack,      {.i = +1} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_K,          movestack,      {.i = -1} },
 	{ MODKEY,                    XKB_KEY_comma,      incnmaster,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_period,     incnmaster,     {.i = -1} },
 	{ MODKEY,                    XKB_KEY_h,          setmfact,       {.f = -0.05f} },
 	{ MODKEY,                    XKB_KEY_l,          setmfact,       {.f = +0.05f} },
 	{ MODKEY,                    XKB_KEY_s,          zoom,           {0} },
 	{ MODKEY,                    XKB_KEY_Tab,        view,           {0} },
+	{ MODKEY,                    XKB_KEY_g,          togglegaps,     {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_C,          killclient,     {0} },
 	{ MODKEY,                    XKB_KEY_t,          setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                    XKB_KEY_e,          setlayout,      {.v = &layouts[1]} },
@@ -186,6 +209,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_space,      setlayout,      {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
 	{ MODKEY,                    XKB_KEY_f,         togglefullscreen, {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_F,      togglefakefullscreen, {0} },
 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, tag,            {.ui = ~0} },
 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = WLR_DIRECTION_LEFT} },
